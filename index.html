@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYT Books API Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .api-key-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .api-key-input {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        select {
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .api-key-input input {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .tabs {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            background: #f0f0f0;
+            color: #333;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .endpoint-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .endpoint-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .endpoint-info {
+            background: #e8eaf6;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .response-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .response-header h2 {
+            color: #333;
+        }
+
+        .copy-btn {
+            background: #28a745;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .response-content {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            max-height: 600px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .response-content pre {
+            margin: 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #c3e6cb;
+        }
+
+        .info-box {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid #bee5eb;
+        }
+
+        .quick-links {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .quick-links h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .quick-links a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .quick-links a:hover {
+            text-decoration: underline;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .stat-card p {
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 NYT Books API Explorer</h1>
+            <p class="subtitle">Explore the New York Times Books API - Best Sellers Lists & Book Reviews</p>
+
+            <div class="api-key-section">
+                <div class="api-key-input">
+                    <label for="apiKey" style="white-space: nowrap; font-weight: 600;">API Key:</label>
+                    <input type="text" id="apiKey" placeholder="Enter your NYT API key" />
+                    <button onclick="saveApiKey()">Save Key</button>
+                    <button onclick="clearApiKey()" style="background: #dc3545;">Clear</button>
+                </div>
+                <div class="info-box" style="margin-top: 15px;">
+                    <strong>Need an API key?</strong> Get one for free at
+                    <a href="https://developer.nytimes.com/get-started" target="_blank">developer.nytimes.com</a>
+                    <br><small>Rate limit: 500 requests per day, 5 requests per minute</small>
+                </div>
+            </div>
+        </header>
+
+        <div class="quick-links">
+            <h2>Quick Info</h2>
+            <p><strong>Base URL:</strong> https://api.nytimes.com/svc/books/v3</p>
+            <p><strong>Documentation:</strong> <a href="https://developer.nytimes.com/docs/books-product/1/overview" target="_blank">Official Docs</a> |
+            <a href="https://github.com/nytimes/public_api_specs/blob/master/books_api/books_api.md" target="_blank">GitHub Specs</a></p>
+        </div>
+
+        <div class="tabs">
+            <div class="tab-buttons">
+                <div class="tab-button active" onclick="switchTab('bestsellers')">Best Sellers</div>
+                <div class="tab-button" onclick="switchTab('overview')">Lists Overview</div>
+                <div class="tab-button" onclick="switchTab('listnames')">List Names</div>
+                <div class="tab-button" onclick="switchTab('history')">Book History</div>
+                <div class="tab-button" onclick="switchTab('reviews')">Book Reviews</div>
+                <div class="tab-button" onclick="switchTab('agegroups')">Age Groups</div>
+            </div>
+
+            <!-- Best Sellers Tab -->
+            <div id="bestsellers" class="tab-content active">
+                <div class="endpoint-section">
+                    <h3>Get Best Sellers List</h3>
+                    <div class="endpoint-info">
+                        GET /svc/books/v3/lists/{date}/{list-name}.json
+                    </div>
+                    <div class="info-box">
+                        Get the details of a specific Best Sellers list by date and list name.
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="bs-date">Date (or "current"):</label>
+                            <input type="text" id="bs-date" value="current" placeholder="YYYY-MM-DD or 'current'" />
+                        </div>
+                        <div class="form-group">
+                            <label for="bs-list">List Name:</label>
+                            <select id="bs-list">
+                                <option value="hardcover-fiction">Hardcover Fiction</option>
+                                <option value="hardcover-nonfiction">Hardcover Nonfiction</option>
+                                <option value="trade-fiction-paperback">Trade Fiction Paperback</option>
+                                <option value="paperback-nonfiction">Paperback Nonfiction</option>
+                                <option value="combined-print-and-e-book-fiction">Combined Print & E-Book Fiction</option>
+                                <option value="combined-print-and-e-book-nonfiction">Combined Print & E-Book Nonfiction</option>
+                                <option value="young-adult-hardcover">Young Adult Hardcover</option>
+                                <option value="picture-books">Picture Books</option>
+                                <option value="series-books">Series Books</option>
+                                <option value="graphic-books-and-manga">Graphic Books and Manga</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="bs-offset">Offset (multiples of 20):</label>
+                            <input type="text" id="bs-offset" value="0" placeholder="0, 20, 40..." />
+                        </div>
+                    </div>
+                    <button onclick="getBestSellersList()">Get Best Sellers List</button>
+                </div>
+            </div>
+
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content">
+                <div class="endpoint-section">
+                    <h3>Get Best Sellers Lists Overview</h3>
+                    <div class="endpoint-info">
+                        GET /svc/books/v3/lists/overview.json
+                    </div>
+                    <div class="info-box">
+                        Get the top 5 books from all Best Sellers lists for a specific date.
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ov-date">Published Date (optional):</label>
+                        <input type="date" id="ov-date" placeholder="YYYY-MM-DD" />
+                    </div>
+                    <button onclick="getOverview()">Get Overview</button>
+                </div>
+            </div>
+
+            <!-- List Names Tab -->
+            <div id="listnames" class="tab-content">
+                <div class="endpoint-section">
+                    <h3>Get All Best Sellers List Names</h3>
+                    <div class="endpoint-info">
+                        GET /svc/books/v3/lists/names.json
+                    </div>
+                    <div class="info-box">
+                        Get all available Best Sellers list names with their encoded versions and metadata.
+                    </div>
+
+                    <button onclick="getListNames()">Get List Names</button>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history" class="tab-content">
+                <div class="endpoint-section">
+                    <h3>Get Book's Best Sellers List History</h3>
+                    <div class="endpoint-info">
+                        GET /svc/books/v3/lists/best-sellers/history.json
+                    </div>
+                    <div class="info-box">
+                        Search for a book's history on Best Sellers lists by author, ISBN, or title.
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="hist-author">Author:</label>
+                            <input type="text" id="hist-author" placeholder="e.g., Stephen King" />
+                        </div>
+                        <div class="form-group">
+                            <label for="hist-isbn">ISBN:</label>
+                            <input type="text" id="hist-isbn" placeholder="10 or 13 digit ISBN" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="hist-title">Title:</label>
+                        <input type="text" id="hist-title" placeholder="Book title" />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="hist-offset">Offset:</label>
+                            <input type="text" id="hist-offset" value="0" placeholder="0, 20, 40..." />
+                        </div>
+                    </div>
+                    <button onclick="getHistory()">Search History</button>
+                </div>
+            </div>
+
+            <!-- Reviews Tab -->
+            <div id="reviews" class="tab-content">
+                <div class="endpoint-section">
+                    <h3>Search Book Reviews</h3>
+                    <div class="endpoint-info">
+                        GET /svc/books/v3/reviews.json
+                    </div>
+                    <div class="info-box">
+                        Search for NYT book reviews by ISBN, title, or author. At least one parameter is required.
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rev-isbn">ISBN (10 or 13 digits):</label>
+                            <input type="text" id="rev-isbn" placeholder="e.g., 9781476730772" />
+                        </div>
+                        <div class="form-group">
+                            <label for="rev-title">Title:</label>
+                            <input type="text" id="rev-title" placeholder="Book title" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="rev-author">Author:</label>
+                        <input type="text" id="rev-author" placeholder="Author name" />
+                    </div>
+                    <button onclick="getReviews()">Search Reviews</button>
+                </div>
+            </div>
+
+            <!-- Age Groups Tab -->
+            <div id="agegroups" class="tab-content">
+                <div class="endpoint-section">
+                    <h3>Get Age Groups</h3>
+                    <div class="endpoint-info">
+                        GET /svc/books/v3/lists/age-groups.json
+                    </div>
+                    <div class="info-box">
+                        Get all available age groups for Best Sellers lists.
+                    </div>
+
+                    <button onclick="getAgeGroups()">Get Age Groups</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="response" class="response-section hidden">
+            <div class="response-header">
+                <h2>Response</h2>
+                <button class="copy-btn" onclick="copyResponse()">Copy JSON</button>
+            </div>
+            <div id="responseContent" class="response-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'https://api.nytimes.com/svc/books/v3';
+        let currentResponse = null;
+
+        // Load API key from localStorage on page load
+        window.onload = function() {
+            const savedKey = localStorage.getItem('nyt-api-key');
+            if (savedKey) {
+                document.getElementById('apiKey').value = savedKey;
+            }
+        };
+
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (apiKey) {
+                localStorage.setItem('nyt-api-key', apiKey);
+                showMessage('API key saved successfully!', 'success');
+            } else {
+                showMessage('Please enter an API key', 'error');
+            }
+        }
+
+        function clearApiKey() {
+            localStorage.removeItem('nyt-api-key');
+            document.getElementById('apiKey').value = '';
+            showMessage('API key cleared', 'success');
+        }
+
+        function getApiKey() {
+            return document.getElementById('apiKey').value.trim() || localStorage.getItem('nyt-api-key');
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+
+        async function makeRequest(url) {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showMessage('Please enter your API key first', 'error');
+                return;
+            }
+
+            const separator = url.includes('?') ? '&' : '?';
+            const fullUrl = `${url}${separator}api-key=${apiKey}`;
+
+            showLoading();
+
+            try {
+                const response = await fetch(fullUrl);
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentResponse = data;
+                    displayResponse(data);
+                } else {
+                    showMessage(`Error: ${data.fault?.faultstring || 'Request failed'}`, 'error');
+                    displayResponse(data);
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+                hideResponse();
+            }
+        }
+
+        function getBestSellersList() {
+            const date = document.getElementById('bs-date').value || 'current';
+            const list = document.getElementById('bs-list').value;
+            const offset = document.getElementById('bs-offset').value || 0;
+
+            const url = `${BASE_URL}/lists/${date}/${list}.json?offset=${offset}`;
+            makeRequest(url);
+        }
+
+        function getOverview() {
+            const date = document.getElementById('ov-date').value;
+            let url = `${BASE_URL}/lists/overview.json`;
+
+            if (date) {
+                url += `?published_date=${date}`;
+            }
+
+            makeRequest(url);
+        }
+
+        function getListNames() {
+            const url = `${BASE_URL}/lists/names.json`;
+            makeRequest(url);
+        }
+
+        function getHistory() {
+            const author = document.getElementById('hist-author').value;
+            const isbn = document.getElementById('hist-isbn').value;
+            const title = document.getElementById('hist-title').value;
+            const offset = document.getElementById('hist-offset').value || 0;
+
+            let url = `${BASE_URL}/lists/best-sellers/history.json?offset=${offset}`;
+
+            if (author) url += `&author=${encodeURIComponent(author)}`;
+            if (isbn) url += `&isbn=${isbn}`;
+            if (title) url += `&title=${encodeURIComponent(title)}`;
+
+            makeRequest(url);
+        }
+
+        function getReviews() {
+            const isbn = document.getElementById('rev-isbn').value;
+            const title = document.getElementById('rev-title').value;
+            const author = document.getElementById('rev-author').value;
+
+            if (!isbn && !title && !author) {
+                showMessage('Please provide at least one search parameter (ISBN, title, or author)', 'error');
+                return;
+            }
+
+            let url = `${BASE_URL}/reviews.json?`;
+
+            if (isbn) url += `isbn=${isbn}&`;
+            if (title) url += `title=${encodeURIComponent(title)}&`;
+            if (author) url += `author=${encodeURIComponent(author)}&`;
+
+            makeRequest(url);
+        }
+
+        function getAgeGroups() {
+            const url = `${BASE_URL}/lists/age-groups.json`;
+            makeRequest(url);
+        }
+
+        function displayResponse(data) {
+            const responseDiv = document.getElementById('response');
+            const contentDiv = document.getElementById('responseContent');
+
+            responseDiv.classList.remove('hidden');
+
+            // Pretty print JSON with syntax highlighting
+            const jsonString = JSON.stringify(data, null, 2);
+            contentDiv.innerHTML = `<pre>${syntaxHighlight(jsonString)}</pre>`;
+        }
+
+        function syntaxHighlight(json) {
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                let cls = 'number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'key';
+                        return '<span style="color: #9cdcfe;">' + match + '</span>';
+                    } else {
+                        cls = 'string';
+                        return '<span style="color: #ce9178;">' + match + '</span>';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'boolean';
+                    return '<span style="color: #569cd6;">' + match + '</span>';
+                } else if (/null/.test(match)) {
+                    cls = 'null';
+                    return '<span style="color: #569cd6;">' + match + '</span>';
+                }
+                return '<span style="color: #b5cea8;">' + match + '</span>';
+            });
+        }
+
+        function showLoading() {
+            const responseDiv = document.getElementById('response');
+            const contentDiv = document.getElementById('responseContent');
+
+            responseDiv.classList.remove('hidden');
+            contentDiv.innerHTML = '<div class="spinner"></div><p style="text-align: center; margin-top: 10px; color: #666;">Loading...</p>';
+        }
+
+        function hideResponse() {
+            document.getElementById('response').classList.add('hidden');
+        }
+
+        function showMessage(message, type) {
+            const responseDiv = document.getElementById('response');
+            const contentDiv = document.getElementById('responseContent');
+
+            responseDiv.classList.remove('hidden');
+            contentDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        function copyResponse() {
+            if (currentResponse) {
+                const jsonString = JSON.stringify(currentResponse, null, 2);
+                navigator.clipboard.writeText(jsonString).then(() => {
+                    const btn = event.target;
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
