@@ -339,9 +339,14 @@
             <p class="subtitle">Explore the New York Times Books API - Best Sellers Lists & Book Reviews</p>
 
             <div class="api-key-section">
-                <div class="api-key-input">
-                    <label for="apiKey" style="white-space: nowrap; font-weight: 600;">API Key:</label>
-                    <input type="text" id="apiKey" placeholder="Enter your NYT API key" />
+                <div class="info-box">
+                    <strong>🚀 Vercel Deployment:</strong> This app uses server-side environment variables for API key security.
+                    <br>The NYT API key is configured via <code>NYT_API_KEY</code> environment variable in Vercel.
+                    <br><small>No need to enter your API key manually when deployed on Vercel!</small>
+                </div>
+                <div class="api-key-input" style="margin-top: 15px;">
+                    <label for="apiKey" style="white-space: nowrap; font-weight: 600;">Local Dev API Key (optional):</label>
+                    <input type="text" id="apiKey" placeholder="For local development only" />
                     <button onclick="saveApiKey()">Save Key</button>
                     <button onclick="clearApiKey()" style="background: #dc3545;">Clear</button>
                 </div>
@@ -586,26 +591,46 @@
         }
 
         async function makeRequest(url) {
-            const apiKey = getApiKey();
-            if (!apiKey) {
-                showMessage('Please enter your API key first', 'error');
-                return;
-            }
-
-            const separator = url.includes('?') ? '&' : '?';
-            const fullUrl = `${url}${separator}api-key=${apiKey}`;
-
             showLoading();
 
             try {
-                const response = await fetch(fullUrl);
-                const data = await response.json();
+                // Extract the endpoint path from the full URL
+                const endpoint = url.replace(BASE_URL, '');
+
+                // Try to use the serverless function first (for Vercel deployment)
+                let proxyUrl = `/api/nyt-proxy?endpoint=${encodeURIComponent(endpoint)}`;
+
+                // Check if there are existing query parameters in the endpoint
+                if (endpoint.includes('?')) {
+                    const [path, queryString] = endpoint.split('?');
+                    proxyUrl = `/api/nyt-proxy?endpoint=${encodeURIComponent(path)}`;
+
+                    // Add the original query parameters
+                    const params = new URLSearchParams(queryString);
+                    for (const [key, value] of params.entries()) {
+                        proxyUrl += `&${key}=${encodeURIComponent(value)}`;
+                    }
+                }
+
+                const localApiKey = getApiKey();
+
+                // Try serverless function first
+                let response = await fetch(proxyUrl);
+                let data = await response.json();
+
+                // If serverless function fails and we have a local API key, try direct API call
+                if (!response.ok && data.error === 'NYT_API_KEY environment variable is not configured' && localApiKey) {
+                    const separator = url.includes('?') ? '&' : '?';
+                    const directUrl = `${url}${separator}api-key=${localApiKey}`;
+                    response = await fetch(directUrl);
+                    data = await response.json();
+                }
 
                 if (response.ok) {
                     currentResponse = data;
                     displayResponse(data);
                 } else {
-                    showMessage(`Error: ${data.fault?.faultstring || 'Request failed'}`, 'error');
+                    showMessage(`Error: ${data.fault?.faultstring || data.message || data.error || 'Request failed'}`, 'error');
                     displayResponse(data);
                 }
             } catch (error) {

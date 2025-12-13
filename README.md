@@ -33,18 +33,80 @@ You need a New York Times API key to use this explorer.
 3. Subscribe to the Books API
 4. Copy your API key
 
-### Installation
+### Deploying to Vercel (Recommended)
 
-1. Clone this repository or download the files
-2. Open `index.html` in any modern web browser
-3. Enter your NYT API key in the header section
-4. Click "Save Key" to store it locally
+This application is optimized for deployment on Vercel with secure environment variable support.
 
-That's it! No build process, no dependencies, just open and explore.
+1. **Fork or clone this repository**
+
+2. **Get your NYT API Key:**
+   - Visit [NYT Developer Portal](https://developer.nytimes.com/get-started)
+   - Create a free account
+   - Subscribe to the Books API
+   - Copy your API key
+
+3. **Deploy to Vercel:**
+
+   [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
+
+   Or use Vercel CLI:
+   ```bash
+   npm i -g vercel
+   vercel
+   ```
+
+4. **Configure Environment Variable:**
+   - In your Vercel project dashboard, go to **Settings → Environment Variables**
+   - Add a new variable:
+     - Name: `NYT_API_KEY`
+     - Value: Your NYT API key
+   - Add it to all environments (Production, Preview, Development)
+
+5. **Redeploy:**
+   - Vercel will automatically redeploy
+   - Your API key is now securely stored server-side!
+
+### Local Development
+
+1. Clone this repository
+2. Create a `.env` file based on `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+3. Add your NYT API key to the `.env` file
+4. Open `index.html` in any modern web browser
+5. Alternatively, enter your API key in the "Local Dev API Key" field in the UI
+
+That's it! No build process, no dependencies.
+
+## Architecture
+
+### Secure API Key Handling
+
+When deployed on Vercel, this application uses a serverless architecture to keep your API key secure:
+
+- **Serverless Function (`/api/nyt-proxy.js`)**: Acts as a secure proxy between your frontend and the NYT API
+- **Environment Variables**: API key is stored server-side in Vercel environment variables
+- **No Client Exposure**: Your API key never appears in client-side code or browser network requests
+- **Automatic Fallback**: For local development, you can still use a manual API key entry
+
+### How It Works
+
+1. Frontend makes requests to `/api/nyt-proxy?endpoint=...`
+2. Serverless function receives the request
+3. Function fetches API key from `process.env.NYT_API_KEY`
+4. Function proxies the request to NYT API with the key
+5. Response is returned to the frontend
+
+This architecture prevents API key exposure and provides better security than client-side API calls.
 
 ## Usage
 
-### API Key Management
+### API Key Management (Vercel Deployment)
+
+When deployed on Vercel, API keys are managed through environment variables - no manual entry needed!
+
+### API Key Management (Local Development)
 - Enter your API key in the input field at the top
 - Click "Save Key" to store it in your browser's localStorage
 - The key persists across browser sessions
@@ -153,7 +215,12 @@ Works in all modern browsers that support:
 ### File Structure
 ```
 .
-├── index.html          # Complete single-page application
+├── index.html          # Frontend application
+├── api/
+│   └── nyt-proxy.js   # Serverless function for API proxying
+├── vercel.json        # Vercel configuration
+├── .env.example       # Environment variable template
+├── .gitignore         # Git ignore rules
 └── README.md          # This file
 ```
 
