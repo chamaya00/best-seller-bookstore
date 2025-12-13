@@ -330,6 +330,57 @@
             color: #666;
             font-size: 0.9em;
         }
+
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border-radius: 8px;
+            background: #f8f9fa;
+            padding: 15px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .results-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .results-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            vertical-align: top;
+        }
+
+        .results-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .results-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .raw-json-toggle {
+            margin-bottom: 15px;
+            background: #6c757d;
+        }
+
+        .raw-json-toggle:hover {
+            background: #5a6268;
+        }
     </style>
 </head>
 <body>
@@ -343,12 +394,6 @@
                     <strong>🚀 Vercel Deployment:</strong> This app uses server-side environment variables for API key security.
                     <br>The NYT API key is configured via <code>NYT_API_KEY</code> environment variable in Vercel.
                     <br><small>No need to enter your API key manually when deployed on Vercel!</small>
-                </div>
-                <div class="api-key-input" style="margin-top: 15px;">
-                    <label for="apiKey" style="white-space: nowrap; font-weight: 600;">Local Dev API Key (optional):</label>
-                    <input type="text" id="apiKey" placeholder="For local development only" />
-                    <button onclick="saveApiKey()">Save Key</button>
-                    <button onclick="clearApiKey()" style="background: #dc3545;">Clear</button>
                 </div>
                 <div class="info-box" style="margin-top: 15px;">
                     <strong>Need an API key?</strong> Get one for free at
@@ -534,7 +579,10 @@
         <div id="response" class="response-section hidden">
             <div class="response-header">
                 <h2>Response</h2>
-                <button class="copy-btn" onclick="copyResponse()">Copy JSON</button>
+                <div>
+                    <button class="raw-json-toggle" onclick="toggleRawJson()">Toggle Raw JSON</button>
+                    <button class="copy-btn" onclick="copyResponse()">Copy JSON</button>
+                </div>
             </div>
             <div id="responseContent" class="response-content"></div>
         </div>
@@ -543,34 +591,7 @@
     <script>
         const BASE_URL = 'https://api.nytimes.com/svc/books/v3';
         let currentResponse = null;
-
-        // Load API key from localStorage on page load
-        window.onload = function() {
-            const savedKey = localStorage.getItem('nyt-api-key');
-            if (savedKey) {
-                document.getElementById('apiKey').value = savedKey;
-            }
-        };
-
-        function saveApiKey() {
-            const apiKey = document.getElementById('apiKey').value.trim();
-            if (apiKey) {
-                localStorage.setItem('nyt-api-key', apiKey);
-                showMessage('API key saved successfully!', 'success');
-            } else {
-                showMessage('Please enter an API key', 'error');
-            }
-        }
-
-        function clearApiKey() {
-            localStorage.removeItem('nyt-api-key');
-            document.getElementById('apiKey').value = '';
-            showMessage('API key cleared', 'success');
-        }
-
-        function getApiKey() {
-            return document.getElementById('apiKey').value.trim() || localStorage.getItem('nyt-api-key');
-        }
+        let showRawJson = false;
 
         function switchTab(tabName) {
             // Hide all tabs
@@ -597,7 +618,7 @@
                 // Extract the endpoint path from the full URL
                 const endpoint = url.replace(BASE_URL, '');
 
-                // Try to use the serverless function first (for Vercel deployment)
+                // Use the serverless function (for Vercel deployment)
                 let proxyUrl = `/api/nyt-proxy?endpoint=${encodeURIComponent(endpoint)}`;
 
                 // Check if there are existing query parameters in the endpoint
@@ -612,26 +633,15 @@
                     }
                 }
 
-                const localApiKey = getApiKey();
-
-                // Try serverless function first
-                let response = await fetch(proxyUrl);
-                let data = await response.json();
-
-                // If serverless function fails and we have a local API key, try direct API call
-                if (!response.ok && data.error === 'NYT_API_KEY environment variable is not configured' && localApiKey) {
-                    const separator = url.includes('?') ? '&' : '?';
-                    const directUrl = `${url}${separator}api-key=${localApiKey}`;
-                    response = await fetch(directUrl);
-                    data = await response.json();
-                }
+                const response = await fetch(proxyUrl);
+                const data = await response.json();
 
                 if (response.ok) {
                     currentResponse = data;
-                    displayResponse(data);
+                    displayResponse(data, url);
                 } else {
                     showMessage(`Error: ${data.fault?.faultstring || data.message || data.error || 'Request failed'}`, 'error');
-                    displayResponse(data);
+                    displayResponse(data, url);
                 }
             } catch (error) {
                 showMessage(`Error: ${error.message}`, 'error');
@@ -703,15 +713,239 @@
             makeRequest(url);
         }
 
-        function displayResponse(data) {
+        function displayResponse(data, url) {
             const responseDiv = document.getElementById('response');
             const contentDiv = document.getElementById('responseContent');
 
             responseDiv.classList.remove('hidden');
 
-            // Pretty print JSON with syntax highlighting
+            if (showRawJson) {
+                displayRawJson(data, contentDiv);
+            } else {
+                displayAsTable(data, contentDiv, url);
+            }
+        }
+
+        function displayRawJson(data, contentDiv) {
             const jsonString = JSON.stringify(data, null, 2);
             contentDiv.innerHTML = `<pre>${syntaxHighlight(jsonString)}</pre>`;
+            contentDiv.style.background = '#1e1e1e';
+            contentDiv.style.padding = '20px';
+        }
+
+        function displayAsTable(data, contentDiv, url) {
+            contentDiv.style.background = 'transparent';
+            contentDiv.style.padding = '0';
+
+            // Determine the type of response and display accordingly
+            if (data.results) {
+                if (Array.isArray(data.results)) {
+                    // List Names, Age Groups, or History results
+                    if (url.includes('/names.json')) {
+                        displayListNamesTable(data.results, contentDiv);
+                    } else if (url.includes('/age-groups.json')) {
+                        displayAgeGroupsTable(data.results, contentDiv);
+                    } else if (url.includes('/history.json')) {
+                        displayHistoryTable(data.results, contentDiv);
+                    } else if (url.includes('/reviews.json')) {
+                        displayReviewsTable(data.results, contentDiv);
+                    } else {
+                        displayGenericTable(data.results, contentDiv);
+                    }
+                } else if (data.results.books) {
+                    // Best Sellers List
+                    displayBestSellersTable(data.results, contentDiv);
+                } else if (data.results.lists) {
+                    // Overview
+                    displayOverviewTable(data.results.lists, contentDiv);
+                }
+            } else {
+                // Fallback to raw JSON if structure is unknown
+                displayRawJson(data, contentDiv);
+            }
+        }
+
+        function displayBestSellersTable(results, contentDiv) {
+            const books = results.books || [];
+            let html = '<div class="table-container"><table class="results-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th>';
+            html += '<th>Title</th>';
+            html += '<th>Author</th>';
+            html += '<th>Publisher</th>';
+            html += '<th>Description</th>';
+            html += '<th>Weeks on List</th>';
+            html += '</tr></thead><tbody>';
+
+            books.forEach(book => {
+                html += '<tr>';
+                html += `<td><strong>${book.rank}</strong></td>`;
+                html += `<td><strong>${book.title}</strong></td>`;
+                html += `<td>${book.author}</td>`;
+                html += `<td>${book.publisher}</td>`;
+                html += `<td>${book.description || 'N/A'}</td>`;
+                html += `<td>${book.weeks_on_list}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function displayOverviewTable(lists, contentDiv) {
+            let html = '<div class="table-container">';
+
+            lists.forEach(list => {
+                html += `<h3 style="color: #333; margin: 20px 0 10px 0;">${list.display_name}</h3>`;
+                html += '<table class="results-table">';
+                html += '<thead><tr>';
+                html += '<th>Rank</th>';
+                html += '<th>Title</th>';
+                html += '<th>Author</th>';
+                html += '<th>Description</th>';
+                html += '</tr></thead><tbody>';
+
+                list.books.forEach(book => {
+                    html += '<tr>';
+                    html += `<td><strong>${book.rank}</strong></td>`;
+                    html += `<td><strong>${book.title}</strong></td>`;
+                    html += `<td>${book.author}</td>`;
+                    html += `<td>${book.description || 'N/A'}</td>`;
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table>';
+            });
+
+            html += '</div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function displayListNamesTable(results, contentDiv) {
+            let html = '<div class="table-container"><table class="results-table">';
+            html += '<thead><tr>';
+            html += '<th>List Name</th>';
+            html += '<th>Display Name</th>';
+            html += '<th>Oldest</th>';
+            html += '<th>Newest</th>';
+            html += '<th>Update Frequency</th>';
+            html += '</tr></thead><tbody>';
+
+            results.forEach(item => {
+                html += '<tr>';
+                html += `<td><code>${item.list_name_encoded}</code></td>`;
+                html += `<td><strong>${item.display_name}</strong></td>`;
+                html += `<td>${item.oldest_published_date}</td>`;
+                html += `<td>${item.newest_published_date}</td>`;
+                html += `<td>${item.updated}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function displayAgeGroupsTable(results, contentDiv) {
+            let html = '<div class="table-container"><table class="results-table">';
+            html += '<thead><tr>';
+            html += '<th>Age Group</th>';
+            html += '</tr></thead><tbody>';
+
+            results.forEach(item => {
+                html += '<tr>';
+                html += `<td><strong>${item.age_group}</strong></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function displayHistoryTable(results, contentDiv) {
+            let html = '<div class="table-container"><table class="results-table">';
+            html += '<thead><tr>';
+            html += '<th>Title</th>';
+            html += '<th>Author</th>';
+            html += '<th>Publisher</th>';
+            html += '<th>Description</th>';
+            html += '<th>ISBN</th>';
+            html += '</tr></thead><tbody>';
+
+            results.forEach(book => {
+                html += '<tr>';
+                html += `<td><strong>${book.title}</strong></td>`;
+                html += `<td>${book.author}</td>`;
+                html += `<td>${book.publisher}</td>`;
+                html += `<td>${book.description || 'N/A'}</td>`;
+                html += `<td>${book.isbns?.map(i => i.isbn13 || i.isbn10).join(', ') || 'N/A'}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function displayReviewsTable(results, contentDiv) {
+            let html = '<div class="table-container"><table class="results-table">';
+            html += '<thead><tr>';
+            html += '<th>Book Title</th>';
+            html += '<th>Author</th>';
+            html += '<th>Summary</th>';
+            html += '<th>Publication Date</th>';
+            html += '<th>Review Link</th>';
+            html += '</tr></thead><tbody>';
+
+            results.forEach(review => {
+                html += '<tr>';
+                html += `<td><strong>${review.book_title}</strong></td>`;
+                html += `<td>${review.book_author}</td>`;
+                html += `<td>${review.summary}</td>`;
+                html += `<td>${review.publication_dt}</td>`;
+                html += `<td><a href="${review.url}" target="_blank">View Review</a></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function displayGenericTable(results, contentDiv) {
+            if (results.length === 0) {
+                contentDiv.innerHTML = '<p style="padding: 20px;">No results found.</p>';
+                return;
+            }
+
+            let html = '<div class="table-container"><table class="results-table">';
+
+            // Get all unique keys from results
+            const keys = [...new Set(results.flatMap(Object.keys))];
+
+            html += '<thead><tr>';
+            keys.forEach(key => {
+                html += `<th>${key.replace(/_/g, ' ').toUpperCase()}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            results.forEach(item => {
+                html += '<tr>';
+                keys.forEach(key => {
+                    const value = item[key];
+                    const displayValue = typeof value === 'object' ? JSON.stringify(value) : (value || 'N/A');
+                    html += `<td>${displayValue}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+
+        function toggleRawJson() {
+            showRawJson = !showRawJson;
+            if (currentResponse) {
+                const contentDiv = document.getElementById('responseContent');
+                displayResponse(currentResponse, '');
+            }
         }
 
         function syntaxHighlight(json) {
