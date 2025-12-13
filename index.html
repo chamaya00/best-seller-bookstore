@@ -418,6 +418,7 @@
                 <div class="tab-button" onclick="switchTab('history')">Book History</div>
                 <div class="tab-button" onclick="switchTab('reviews')">Book Reviews</div>
                 <div class="tab-button" onclick="switchTab('agegroups')">Age Groups</div>
+                <div class="tab-button" onclick="switchTab('database')">📚 Database</div>
             </div>
 
             <!-- Best Sellers Tab -->
@@ -574,6 +575,36 @@
                     <button onclick="getAgeGroups()">Get Age Groups</button>
                 </div>
             </div>
+
+            <!-- Database Tab -->
+            <div id="database" class="tab-content">
+                <div class="endpoint-section">
+                    <h3>📚 Query Historical Database</h3>
+                    <div class="info-box" style="background: #d4edda; border-color: #c3e6cb; color: #155724;">
+                        Query historical NYT Best Sellers data from our local database. This data is updated daily and contains historical rankings going back years.
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <label for="db-action" style="display: block; margin-bottom: 10px; font-weight: bold;">Select Query Type:</label>
+                        <select id="db-action" onchange="updateDbForm()" style="width: 100%; max-width: 400px; padding: 10px;">
+                            <option value="stats">Database Statistics</option>
+                            <option value="lists">All Available Lists</option>
+                            <option value="current">Current Bestsellers by List</option>
+                            <option value="history">Historical Bestsellers by Date</option>
+                            <option value="dates">Available Dates for a List</option>
+                            <option value="search">Search Books</option>
+                            <option value="book">Book Details by ISBN</option>
+                        </select>
+                    </div>
+
+                    <!-- Dynamic form fields -->
+                    <div id="db-form-fields" style="margin-top: 20px;">
+                        <!-- Will be populated by updateDbForm() -->
+                    </div>
+
+                    <button onclick="queryDatabase()" style="margin-top: 20px;">Query Database</button>
+                </div>
+            </div>
         </div>
 
         <div id="response" class="response-section hidden">
@@ -712,6 +743,114 @@
             const url = `${BASE_URL}/lists/age-groups.json`;
             makeRequest(url);
         }
+
+        // Database query functions
+        function updateDbForm() {
+            const action = document.getElementById('db-action').value;
+            const formFields = document.getElementById('db-form-fields');
+
+            let html = '';
+
+            if (action === 'current' || action === 'history' || action === 'dates') {
+                html += '<div class="form-group" style="margin-top: 15px;">';
+                html += '<label for="db-list">List Name:</label>';
+                html += '<select id="db-list" style="width: 100%; max-width: 400px; padding: 10px;">';
+                html += '<option value="hardcover-fiction">Hardcover Fiction</option>';
+                html += '<option value="hardcover-nonfiction">Hardcover Nonfiction</option>';
+                html += '<option value="trade-fiction-paperback">Trade Fiction Paperback</option>';
+                html += '<option value="paperback-nonfiction">Paperback Nonfiction</option>';
+                html += '<option value="combined-print-and-e-book-fiction">Combined Print & E-Book Fiction</option>';
+                html += '<option value="combined-print-and-e-book-nonfiction">Combined Print & E-Book Nonfiction</option>';
+                html += '<option value="young-adult-hardcover">Young Adult Hardcover</option>';
+                html += '<option value="picture-books">Picture Books</option>';
+                html += '<option value="series-books">Series Books</option>';
+                html += '<option value="graphic-books-and-manga">Graphic Books and Manga</option>';
+                html += '</select>';
+                html += '</div>';
+            }
+
+            if (action === 'history') {
+                html += '<div class="form-group" style="margin-top: 15px;">';
+                html += '<label for="db-date">Date (YYYY-MM-DD, optional):</label>';
+                html += '<input type="date" id="db-date" style="width: 100%; max-width: 400px; padding: 10px;" />';
+                html += '</div>';
+            }
+
+            if (action === 'search') {
+                html += '<div class="form-group" style="margin-top: 15px;">';
+                html += '<label for="db-search">Search Term (title or author):</label>';
+                html += '<input type="text" id="db-search" placeholder="e.g., Harry Potter or Stephen King" style="width: 100%; max-width: 400px; padding: 10px;" />';
+                html += '</div>';
+            }
+
+            if (action === 'book') {
+                html += '<div class="form-group" style="margin-top: 15px;">';
+                html += '<label for="db-isbn">ISBN (10 or 13 digits):</label>';
+                html += '<input type="text" id="db-isbn" placeholder="e.g., 9781234567890" style="width: 100%; max-width: 400px; padding: 10px;" />';
+                html += '</div>';
+            }
+
+            formFields.innerHTML = html;
+        }
+
+        async function queryDatabase() {
+            const action = document.getElementById('db-action').value;
+            let url = '/api/db-query?action=' + action;
+
+            // Add parameters based on action
+            if (action === 'current' || action === 'history' || action === 'dates') {
+                const list = document.getElementById('db-list').value;
+                url += '&list=' + encodeURIComponent(list);
+            }
+
+            if (action === 'history') {
+                const date = document.getElementById('db-date').value;
+                if (date) {
+                    url += '&date=' + encodeURIComponent(date);
+                }
+            }
+
+            if (action === 'search') {
+                const searchTerm = document.getElementById('db-search').value;
+                if (!searchTerm) {
+                    showMessage('Please enter a search term', 'error');
+                    return;
+                }
+                url += '&q=' + encodeURIComponent(searchTerm);
+            }
+
+            if (action === 'book') {
+                const isbn = document.getElementById('db-isbn').value;
+                if (!isbn) {
+                    showMessage('Please enter an ISBN', 'error');
+                    return;
+                }
+                url += '&isbn=' + encodeURIComponent(isbn);
+            }
+
+            // Make the request
+            showLoading();
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Database query failed');
+                }
+
+                currentResponse = data;
+                displayResponse(data, url);
+            } catch (error) {
+                console.error('Error querying database:', error);
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize database form on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDbForm();
+        });
 
         function displayResponse(data, url) {
             const responseDiv = document.getElementById('response');
