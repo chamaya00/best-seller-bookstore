@@ -1,0 +1,18 @@
+{
+  "name": "nyt-bestsellers-database",
+  "version": "1.0.0",
+  "description": "NYT Best Sellers Historical Database",
+  "type": "module",
+  "scripts": {
+    "init-db": "node scripts/init-db.js",
+    "update-db": "node scripts/update-db.js",
+    "test-db": "node scripts/test-db.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

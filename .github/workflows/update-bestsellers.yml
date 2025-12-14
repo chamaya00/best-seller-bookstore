@@ -1,0 +1,73 @@
+name: Update NYT Best Sellers Database
+
+on:
+  # Run daily at 6 AM UTC (1 AM EST / 10 PM PST)
+  # NYT updates lists on Wednesdays, but we check daily
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  update-database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Update database
+        env:
+          NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
+        run: npm run update-db
+
+      - name: Check for database changes
+        id: check_changes
+        run: |
+          if git diff --quiet data/bestsellers.db; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes to database"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Database has been updated"
+          fi
+
+      - name: Commit and push if changed
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/bestsellers.db
+          git commit -m "Update NYT bestsellers database - $(date +'%Y-%m-%d')"
+          git push
+
+      - name: No changes
+        if: steps.check_changes.outputs.changed == 'false'
+        run: echo "Database is already up to date - no commit needed"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Database Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
+            echo "✅ Database updated successfully" >> $GITHUB_STEP_SUMMARY
+            echo "📅 Date: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No changes detected - database is up to date" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Database Stats" >> $GITHUB_STEP_SUMMARY
+          node scripts/test-db.js || echo "Could not retrieve stats"

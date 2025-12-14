@@ -1,0 +1,182 @@
+name: Initialize NYT Best Sellers Database
+
+on:
+  # Manual trigger only - run when you're ready to populate the database
+  workflow_dispatch:
+    inputs:
+      init_strategy:
+        description: 'Initialization strategy'
+        required: true
+        default: 'recent'
+        type: choice
+        options:
+          - recent    # Data since 2024-01-01 (recommended)
+          - full      # Full historical data (takes hours!)
+          - minimal   # Last 3 months only (quick test)
+          - custom    # Use custom parameters below
+      lists_filter:
+        description: 'Specific lists (comma-separated, e.g., hardcover-fiction,hardcover-nonfiction) - leave empty for all'
+        required: false
+        type: string
+      since_date:
+        description: 'Start date for custom strategy (YYYY-MM-DD, e.g., 2023-01-01)'
+        required: false
+        type: string
+
+jobs:
+  initialize-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours max (full historical data takes time)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Determine initialization parameters
+        id: params
+        run: |
+          strategy="${{ github.event.inputs.init_strategy }}"
+          lists="${{ github.event.inputs.lists_filter }}"
+          custom_date="${{ github.event.inputs.since_date }}"
+
+          # Build command based on strategy
+          cmd="npm run init-db"
+
+          if [ "$strategy" = "recent" ]; then
+            cmd="$cmd -- --since 2024-01-01"
+            echo "mode=Recent data (since 2024-01-01)" >> $GITHUB_OUTPUT
+          elif [ "$strategy" = "minimal" ]; then
+            # Last 3 months
+            since_date=$(date -d '3 months ago' +%Y-%m-%d)
+            cmd="$cmd -- --since $since_date"
+            echo "mode=Minimal (last 3 months since $since_date)" >> $GITHUB_OUTPUT
+          elif [ "$strategy" = "custom" ]; then
+            if [ -n "$custom_date" ]; then
+              cmd="$cmd -- --since $custom_date"
+              echo "mode=Custom (since $custom_date)" >> $GITHUB_OUTPUT
+            else
+              echo "mode=Custom (full history)" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "mode=Full historical data" >> $GITHUB_OUTPUT
+          fi
+
+          # Add lists filter if specified
+          if [ -n "$lists" ]; then
+            cmd="$cmd --lists $lists"
+            echo "mode=${{ steps.params.outputs.mode }} for lists: $lists" >> $GITHUB_OUTPUT
+          fi
+
+          echo "command=$cmd" >> $GITHUB_OUTPUT
+          echo "📝 Will run: $cmd"
+
+      - name: Initialize database
+        env:
+          NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
+        run: |
+          echo "🚀 Starting database initialization..."
+          echo "📋 Mode: ${{ steps.params.outputs.mode }}"
+          echo "⚡ Command: ${{ steps.params.outputs.command }}"
+          echo ""
+
+          # Run the init command
+          ${{ steps.params.outputs.command }}
+
+          echo ""
+          echo "✅ Database initialization complete!"
+
+      - name: Verify database was created
+        run: |
+          if [ -f "data/bestsellers.db" ]; then
+            db_size=$(du -h data/bestsellers.db | cut -f1)
+            echo "✅ Database created successfully!"
+            echo "📊 Database size: $db_size"
+
+            # Run test to show stats
+            npm run test-db
+          else
+            echo "❌ Error: Database file not found!"
+            exit 1
+          fi
+
+      - name: Commit and push database
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # Add the database file
+          git add data/bestsellers.db
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit (database already exists and unchanged)"
+          else
+            # Create commit message with details
+            cat > /tmp/commit_msg.txt << EOF
+Initialize NYT bestsellers database
+
+Strategy: ${{ steps.params.outputs.mode }}
+Date: $(date +'%Y-%m-%d %H:%M:%S UTC')
+Workflow: ${{ github.workflow }}
+Run: ${{ github.run_number }}
+EOF
+
+            git commit -F /tmp/commit_msg.txt
+            git push
+
+            echo "✅ Database committed and pushed successfully!"
+          fi
+
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## 📚 Database Initialization Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Strategy:** ${{ steps.params.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "data/bestsellers.db" ]; then
+            db_size=$(du -h data/bestsellers.db | cut -f1)
+            echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+            echo "**Database Size:** $db_size" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Database Contents" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            npm run test-db 2>&1 | head -30 >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** ❌ Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Database file was not created. Check the logs above for errors." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- The database has been committed to your repository" >> $GITHUB_STEP_SUMMARY
+          echo "- Daily updates will run automatically at 6 AM UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- Deploy to Vercel to make the database available via the web interface" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Database initialization failed!"
+          echo "Check the logs above for error details."
+          echo ""
+          echo "Common issues:"
+          echo "- NYT_API_KEY not set in repository secrets"
+          echo "- API rate limit exceeded (too many requests)"
+          echo "- Network issues"
+          echo ""
+          echo "You can re-run this workflow after fixing the issue."
