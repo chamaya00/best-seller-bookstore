@@ -52,32 +52,34 @@ jobs:
 
           # Build command based on strategy
           cmd="npm run init-db"
+          mode=""
 
           if [ "$strategy" = "recent" ]; then
             cmd="$cmd -- --since 2024-01-01"
-            echo "mode=Recent data (since 2024-01-01)" >> $GITHUB_OUTPUT
+            mode="Recent data (since 2024-01-01)"
           elif [ "$strategy" = "minimal" ]; then
             # Last 3 months
             since_date=$(date -d '3 months ago' +%Y-%m-%d)
             cmd="$cmd -- --since $since_date"
-            echo "mode=Minimal (last 3 months since $since_date)" >> $GITHUB_OUTPUT
+            mode="Minimal (last 3 months since $since_date)"
           elif [ "$strategy" = "custom" ]; then
             if [ -n "$custom_date" ]; then
               cmd="$cmd -- --since $custom_date"
-              echo "mode=Custom (since $custom_date)" >> $GITHUB_OUTPUT
+              mode="Custom (since $custom_date)"
             else
-              echo "mode=Custom (full history)" >> $GITHUB_OUTPUT
+              mode="Custom (full history)"
             fi
           else
-            echo "mode=Full historical data" >> $GITHUB_OUTPUT
+            mode="Full historical data"
           fi
 
           # Add lists filter if specified
           if [ -n "$lists" ]; then
             cmd="$cmd --lists $lists"
-            echo "mode=${{ steps.params.outputs.mode }} for lists: $lists" >> $GITHUB_OUTPUT
+            mode="$mode for lists: $lists"
           fi
 
+          echo "mode=$mode" >> $GITHUB_OUTPUT
           echo "command=$cmd" >> $GITHUB_OUTPUT
           echo "📝 Will run: $cmd"
 
