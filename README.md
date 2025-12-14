@@ -98,13 +98,56 @@ The historical database feature allows you to store and query years of NYT Best 
 
 ### Initial Database Setup
 
+You have two options for initializing the database:
+
+#### Option A: Using GitHub Actions (Recommended ⭐)
+
+This is the easiest way - let GitHub do the heavy lifting!
+
+1. **Add your NYT API Key to GitHub Secrets**
+   - Go to your repository → **Settings** → **Secrets and variables** → **Actions**
+   - Click **"New repository secret"**
+   - Name: `NYT_API_KEY`
+   - Value: Your NYT API key
+   - Click **"Add secret"**
+
+2. **Run the Initialization Workflow**
+   - Go to your repository → **Actions** tab
+   - Click **"Initialize NYT Best Sellers Database"** in the left sidebar
+   - Click **"Run workflow"** button (top right)
+   - Choose your initialization strategy:
+     - **Recent** (recommended): Data since 2024-01-01 (~30 min)
+     - **Minimal**: Last 3 months only (~10 min)
+     - **Full**: Complete historical data (several hours!)
+     - **Custom**: Specify your own date range or lists
+   - Click **"Run workflow"**
+
+3. **Monitor Progress**
+   - Watch the workflow run in real-time
+   - See detailed logs and progress
+   - Get a summary when complete
+
+4. **Database Auto-Commits**
+   - The workflow automatically commits the database to your repo
+   - No need to download or upload anything
+   - Ready to deploy immediately!
+
+**Why use GitHub Actions?**
+- ✅ Runs in the cloud (don't need to keep your computer on)
+- ✅ Handles long-running tasks (hours)
+- ✅ Automatic error recovery
+- ✅ Detailed logs and monitoring
+- ✅ No local setup needed
+
+#### Option B: Local Setup
+
+If you prefer to run it on your machine:
+
 1. **Install Dependencies**
 
    ```bash
    npm install
    ```
-
-   This installs `better-sqlite3` for database operations.
 
 2. **Set Environment Variable**
 
@@ -123,26 +166,19 @@ The historical database feature allows you to store and query years of NYT Best 
    npm run init-db
    ```
 
-   This script will:
-   - Create `data/bestsellers.db` SQLite database
-   - Apply the database schema (books, lists, rankings tables)
-   - Fetch all available list names from NYT API
-   - Fetch historical data for each list (weekly snapshots)
-   - Respect API rate limits (5 requests/min)
-
    **⚠️ Warning:** Full historical fetch can take **several hours** and uses many API requests. Consider these options:
 
-   **Option A: Fetch Specific Lists Only**
-   ```bash
-   node scripts/init-db.js --lists hardcover-fiction,hardcover-nonfiction
-   ```
-
-   **Option B: Fetch Recent Data Only**
+   **Recent Data Only (Recommended)**
    ```bash
    node scripts/init-db.js --since 2024-01-01
    ```
 
-   **Option C: Dry Run (no API calls)**
+   **Specific Lists Only**
+   ```bash
+   node scripts/init-db.js --lists hardcover-fiction,hardcover-nonfiction
+   ```
+
+   **Dry Run (no API calls)**
    ```bash
    node scripts/init-db.js --dry-run
    ```
@@ -153,7 +189,13 @@ The historical database feature allows you to store and query years of NYT Best 
    npm run test-db
    ```
 
-   Shows database statistics and sample queries.
+5. **Commit the Database**
+
+   ```bash
+   git add data/bestsellers.db
+   git commit -m "Add initialized NYT bestsellers database"
+   git push
+   ```
 
 ### Updating the Database
 
