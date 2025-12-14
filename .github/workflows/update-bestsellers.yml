@@ -28,20 +28,45 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Check if database exists
+        id: db_check
+        run: |
+          if [ -f "data/bestsellers.db" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Database exists, will update"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Database does not exist yet"
+            echo "Please run the 'Initialize NYT Best Sellers Database' workflow first"
+          fi
+
       - name: Update database
+        if: steps.db_check.outputs.exists == 'true'
         env:
           NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
         run: npm run update-db
 
+      - name: Skip update if no database
+        if: steps.db_check.outputs.exists == 'false'
+        run: |
+          echo "::warning::Database not found. Please run the 'Initialize NYT Best Sellers Database' workflow first."
+          echo "Skipping update - no database to update"
+
       - name: Check for database changes
+        if: steps.db_check.outputs.exists == 'true'
         id: check_changes
         run: |
-          if git diff --quiet data/bestsellers.db; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No changes to database"
+          if [ -f "data/bestsellers.db" ]; then
+            if git diff --quiet data/bestsellers.db 2>/dev/null; then
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "No changes to database"
+            else
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "Database has been updated"
+            fi
           else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Database has been updated"
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No database file to check"
           fi
 
       - name: Commit and push if changed
@@ -62,12 +87,36 @@ jobs:
         run: |
           echo "## Database Update Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
+
+          if [ "${{ steps.db_check.outputs.exists }}" == "false" ]; then
+            echo "⚠️ **Database Not Initialized**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The database file does not exist yet. Please run the **Initialize NYT Best Sellers Database** workflow first:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. Go to the Actions tab" >> $GITHUB_STEP_SUMMARY
+            echo "2. Click 'Initialize NYT Best Sellers Database'" >> $GITHUB_STEP_SUMMARY
+            echo "3. Click 'Run workflow'" >> $GITHUB_STEP_SUMMARY
+            echo "4. Choose a strategy (recommended: 'Recent')" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "After initialization, this update workflow will run automatically daily." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
             echo "✅ Database updated successfully" >> $GITHUB_STEP_SUMMARY
             echo "📅 Date: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Database Stats" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            node scripts/test-db.js 2>&1 | head -20 >> $GITHUB_STEP_SUMMARY || echo "Could not retrieve stats" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo "ℹ️ No changes detected - database is up to date" >> $GITHUB_STEP_SUMMARY
+            echo "📅 Date: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The latest data is already in the database." >> $GITHUB_STEP_SUMMARY
+            if [ -f "data/bestsellers.db" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### Database Stats" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              node scripts/test-db.js 2>&1 | head -20 >> $GITHUB_STEP_SUMMARY || echo "Could not retrieve stats" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Database Stats" >> $GITHUB_STEP_SUMMARY
-          node scripts/test-db.js || echo "Could not retrieve stats"
